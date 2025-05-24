@@ -1,20 +1,17 @@
 import os
 import whisper
-
-# Paths
-audio_folder = "downloads"          # Folder containing the mp3 files
-transcribed_folder = "transcribed"  # Folder to save the SRT files
+import argparse
 
 # Function to transcribe audio and save as SRT
-def transcribe_audio_to_srt(audio_file, model, output_folder, language="ar"):
-    if not os.path.isfile(audio_file):
-        print(f"Audio file not found: {audio_file}")
+def transcribe_audio_to_srt(audio_file_path, model_name, output_srt_path, language): # language default removed
+    if not os.path.isfile(audio_file_path):
+        print(f"Audio file not found: {audio_file_path}")
         return
 
-    print(f"Transcribing file: {audio_file} with language set to Arabic")
+    print(f"Transcribing file: {audio_file_path} with language set to {language}")
     # Load the Whisper model
-    whisper_model = whisper.load_model(model)
-    result = whisper_model.transcribe(audio_file, language=language, verbose=False)
+    whisper_model = whisper.load_model(model_name)
+    result = whisper_model.transcribe(audio_file_path, language=language, verbose=False) # language passed
 
     # Create SRT content
     srt_content = ""
@@ -29,42 +26,75 @@ def transcribe_audio_to_srt(audio_file, model, output_folder, language="ar"):
 
         srt_content += f"{i + 1}\n{start_time} --> {end_time}\n{text}\n\n"
 
-    # Ensure the output folder exists
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    # Ensure the output folder (part of output_srt_path) exists
+    output_folder_for_srt = os.path.dirname(output_srt_path)
+    if not os.path.exists(output_folder_for_srt):
+        os.makedirs(output_folder_for_srt)
 
     # Save SRT file
-    audio_filename = os.path.basename(audio_file)
-    srt_filename = os.path.splitext(audio_filename)[0] + ".srt"
-    srt_path = os.path.join(output_folder, srt_filename)
+    # audio_filename = os.path.basename(audio_file_path) # Not needed, srt_path is now full path
+    # srt_filename = os.path.splitext(audio_filename)[0] + ".srt" # Not needed
+    # srt_path = os.path.join(output_folder, srt_filename) # output_srt_path is now the full path
 
-    with open(srt_path, "w", encoding="utf-8") as f:
+    with open(output_srt_path, "w", encoding="utf-8") as f:
         f.write(srt_content)
-    print(f"SRT file saved: {srt_path}")
+    print(f"SRT file saved: {output_srt_path}")
 
 # Transcribe all mp3 files in the folder
-def transcribe_all_files_in_folder(folder, output_folder, model="medium", language="ar"):
-    if not os.path.exists(folder):
-        print(f"Folder not found: {folder}")
+def transcribe_all_files_in_folder(input_audio_folder, output_srt_folder, model_name, language): # defaults removed
+    if not os.path.exists(input_audio_folder):
+        print(f"Folder not found: {input_audio_folder}")
         return
 
     # Get all mp3 files in the folder
-    audio_files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".mp3")]
+    audio_files = [os.path.join(input_audio_folder, f) for f in os.listdir(input_audio_folder) if f.endswith(".mp3")]
 
     if not audio_files:
-        print(f"No MP3 files found in folder: {folder}")
+        print(f"No MP3 files found in folder: {input_audio_folder}")
         return
 
-    for audio_file in audio_files:
+    # Ensure the output folder exists
+    if not os.path.exists(output_srt_folder):
+        os.makedirs(output_srt_folder)
+
+    for audio_file_path in audio_files:
         try:
-            transcribe_audio_to_srt(audio_file, model, output_folder, language=language)
+            base_filename = os.path.basename(audio_file_path)
+            srt_filename = os.path.splitext(base_filename)[0] + ".srt"
+            full_output_srt_path = os.path.join(output_srt_folder, srt_filename)
+            transcribe_audio_to_srt(audio_file_path, model_name, full_output_srt_path, language=language)
         except Exception as e:
-            print(f"Error processing {audio_file}: {e}")
+            print(f"Error processing {audio_file_path}: {e}")
 
 # Run the transcription
 if __name__ == "__main__":
-    # Set the Whisper model to 'medium'
-    whisper_model = "medium"
+    parser = argparse.ArgumentParser(description="Transcribe MP3 audio files to SRT subtitles using OpenAI Whisper.")
+    parser.add_argument(
+        "--input_folder",
+        type=str,
+        default="downloads",
+        help="Folder containing the MP3 files. Default is 'downloads'."
+    )
+    parser.add_argument(
+        "--output_folder",
+        type=str,
+        default="transcribed",
+        help="Folder to save the SRT files. Default is 'transcribed'."
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="medium",
+        help="Whisper model to use (e.g., tiny, base, small, medium, large). Default is 'medium'."
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default="ar",
+        help="Language code for transcription (e.g., en, es, fr). Default is 'ar' (Arabic)."
+    )
 
-    # Transcribe all mp3 files in the downloads folder with Arabic language
-    transcribe_all_files_in_folder(audio_folder, transcribed_folder, model=whisper_model, language="ar")
+    args = parser.parse_args()
+
+    # Transcribe all mp3 files using the provided or default arguments
+    transcribe_all_files_in_folder(args.input_folder, args.output_folder, args.model, args.language)
